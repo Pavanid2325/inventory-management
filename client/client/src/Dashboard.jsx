@@ -1,5 +1,8 @@
 import { supabase } from './supabaseClient';
 import { useSession } from './SessionProvider.jsx'; 
+import Products from './Products';
+import SalesLogger from './SalesLogger';
+import Forecast from './forecast.jsx';
 
 export default function Dashboard() {
   // Get the session from our context
@@ -13,16 +16,25 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="container" style={{ paddingTop: '50px' }}>
+      <div className="container" style={{ paddingTop: '50px', maxWidth: '1000px' }}>
+      <button className="button" onClick={handleLogout} style={{float: 'right'}}>
+        Log Out
+      </button>
       <h1>Welcome!</h1>
       <p>
         You are logged in as: <strong>{session?.user.email}</strong>
       </p>
-      <button className="button" onClick={handleLogout}>
-        Log Out
-      </button>
+      <Forecast />
+
       <hr style={{ margin: '20px 0' }} />
-      {/* Your Product and Sales components will go here later */}
+      <div className="dashboard-layout">
+        <div className="sales-logger-container">
+          <SalesLogger />
+        </div>
+        <div className="products-container">
+          <Products />
+        </div>
+      </div>
     </div>
   );
 }

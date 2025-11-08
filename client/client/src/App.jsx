@@ -1,7 +1,7 @@
-import './App.css';
-import { useSession } from './SessionProvider.jsx'; // Import the hook
+import './styles/App.css';
+import { useSession } from './SessionProvider.jsx'; 
 import Auth from './Auth';
-import Dashboard from './Dashboard'; // Import the Dashboard
+import Dashboard from './Dashboard'; 
 
 function App() {
   // Get the session state!
