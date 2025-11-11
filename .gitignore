@@ -1,0 +1,14 @@
+# Node.js
+node_modules/
+npm-debug.log
+
+# Python
+venv/
+__pycache__/
+
+# Secrets
+.env
+*.env
+
+# OS files
+.DS_Store
