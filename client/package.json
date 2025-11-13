@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.80.0",
+    "antd": "^5.28.1",
     "axios": "^1.13.2",
     "chart.js": "^4.5.1",
+    "papaparse": "^5.5.3",
     "react": "^19.1.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.1.1",

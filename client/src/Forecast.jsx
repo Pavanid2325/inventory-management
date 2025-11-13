@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { useSession } from './SessionProvider';
-import axios from 'axios'; // We'll use axios to call our OWN server
+import axios from 'axios'; // We use axios to call our OWN server
 
 // Import chart components
 import { Line } from 'react-chartjs-2';
