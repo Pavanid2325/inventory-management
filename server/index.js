@@ -12,14 +12,9 @@ const supabaseAdmin = createClient(
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '5mb' })); // Increase JSON payload limit
+app.use(express.json({ limit: '5mb' }));
 
 const AI_SERVICE_URL = 'http://localhost:5000/predict';
-
-// Test endpoint
-app.get('/', (req, res) => {
-  res.send('Predictive Inventory API (with Supabase) is running!');
-});
 
 // === HELPER FUNCTION TO GET USER FROM TOKEN ===
 const getUserFromToken = async (authHeader) => {
@@ -59,17 +54,16 @@ app.get('/api/forecast/:productId', async (req, res) => {
 // === UPDATED FEATURE: BULK SALES UPLOAD (WITH AUTO-CREATE) ===
 app.post('/api/sales/bulk-upload', async (req, res) => {
   try {
-    // 1. Get user and sales data from request
     const user = await getUserFromToken(req.headers.authorization);
-    const salesData = req.body.sales; // Expecting an array of sales
+    const salesData = req.body.sales;
 
     if (!salesData || !Array.isArray(salesData)) {
       return res.status(400).json({ error: 'Invalid sales data format.' });
     }
     console.log(`Receiving ${salesData.length} sales records for user ${user.email}`);
 
-    // 2. Get all of the user's products to create a name-to-ID map
-    const { data: products, error: productError } = await supabaseAdmin
+    // 2. Get all of the user's products
+    let { data: products, error: productError } = await supabaseAdmin
       .from('products')
       .select('product_id, name')
       .eq('user_id', user.id);
@@ -81,7 +75,7 @@ app.post('/api/sales/bulk-upload', async (req, res) => {
       productMap.set(p.name.toLowerCase(), p.product_id);
     });
 
-    // 3. First Pass: Identify new products and validate rows
+    // 3. First Pass: Identify new products
     const newProductNames = new Set();
     const salesToProcess = [];
     const failedRows = [];
@@ -90,46 +84,50 @@ app.post('/api/sales/bulk-upload', async (req, res) => {
       const productName = sale.product_name ? String(sale.product_name).trim() : null;
       const productNameLower = productName ? productName.toLowerCase() : null;
 
-      // Basic validation
       if (!productNameLower || !sale.sale_date || !sale.quantity) {
         failedRows.push({ ...sale, reason: "Missing required fields" });
         continue;
       }
       
-      // Check if this is a new product
       if (!productMap.has(productNameLower)) {
-        newProductNames.add(productName); // Add the original-cased name
+        newProductNames.add(productName);
       }
-      
       salesToProcess.push(sale);
     }
 
-    // 4. Batch Create New Products
+    // 4. Batch Create New Products (if any)
     if (newProductNames.size > 0) {
       const productsToInsert = Array.from(newProductNames).map(name => ({
         name: name,
         user_id: user.id,
-        // sku: can be auto-generated or left null
       }));
 
       console.log(`Creating ${productsToInsert.length} new products...`);
 
-      // --- THIS IS FIX #1 ---
-      // We removed the .options() call and just use .select()
-      const { data: newProducts, error: insertProductError } = await supabaseAdmin
+      // --- THIS IS THE FIX ---
+      // We run .insert() and check for an error. We DO NOT chain .select()
+      const { error: insertProductError } = await supabaseAdmin
         .from('products')
-        .insert(productsToInsert)
-        .select('product_id, name');
+        .insert(productsToInsert);
 
       if (insertProductError) throw insertProductError;
 
-      // **CRUCIAL:** Update the productMap with the new IDs
-      newProducts.forEach(p => {
+      // 5. RE-FETCH all products to get the new IDs
+      let { data: updatedProducts, error: refetchError } = await supabaseAdmin
+        .from('products')
+        .select('product_id, name')
+        .eq('user_id', user.id);
+      
+      if (refetchError) throw refetchError;
+
+      // Re-build the map with the new products
+      productMap.clear();
+      updatedProducts.forEach(p => {
         productMap.set(p.name.toLowerCase(), p.product_id);
       });
     }
 
-    // 5. Second Pass: Process and insert all sales
+    // 6. Second Pass: Process and insert all sales
     const salesToInsert = [];
     for (const sale of salesToProcess) {
       const productNameLower = sale.product_name.trim().toLowerCase();
@@ -143,19 +141,16 @@ app.post('/api/sales/bulk-upload', async (req, res) => {
           quantity: parseInt(sale.quantity, 10)
         });
       } else {
-        // This shouldn't happen, but it's a good safeguard
-        failedRows.push({ ...sale, reason: "Failed to create or find product" });
+        failedRows.push({ ...sale, reason: "Failed to find product ID after creation" });
       }
     }
 
-    // 6. Bulk insert the valid sales
+    // 7. Bulk insert the valid sales
     if (salesToInsert.length > 0) {
-      
-      // --- THIS IS FIX #2 ---
-      // We removed the .options() call entirely
       const { error: insertError } = await supabaseAdmin
         .from('sales')
-        .insert(salesToInsert);      
+        .insert(salesToInsert);
+      
       if (insertError) throw insertError;
     }
 
